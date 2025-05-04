@@ -1,10 +1,9 @@
-import { education_url } from "../URLs/Links.js";
+import { washing_ton } from "../URLs/Links.js";
 import * as cheerio from "cheerio";
 import { aiAgent } from "../../Agent/index.js";
 import fs from "fs/promises";
-
 const prompt = `
-You are given a list of education news articles. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
+You are given a list of political news articles. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
 
 [
   {
@@ -19,27 +18,28 @@ You are given a list of education news articles. For each article, extract and r
 
 Instructions:
 - \`story_summary\` must be **concise yet complete**, similar to a news digest (8-9 lines max). Focus on the key points: what, when, where, and why.
-- Keep \`tags\` lowercase, with no spaces or special characters. Use only relevant keywords (e.g., "education", "exams", "results", "admissions", "ranking"). Do not exceed 3 tags.
+- Keep \`tags\` lowercase, with no spaces or special characters. Use only relevant keywords eg ("BJP", "Congress", "Religion" ). Do not exceed 3 tags.
 - Only include the \`image\` field if a valid image URL is available.
 - Return only a **valid minified JSON array** — no markdown, no backticks, no extra explanation.
 `;
 
 // Extracts articles from the given URL
 const getUrlsAndHeading = async (url) => {
+  //simulate a browser
   const response = await fetch(url);
+
   const html = await response.text();
   const $ = cheerio.load(html);
   const articles = [];
 
-  $(".cartHolder.listView.noAd").each((_, element) => {
-    const title = $(element).find("h3 a").text();
-    const itemlink = $(element).find("h3 a").attr("href");
-    const date = $(element).find(".dateTime.secTime.ftldateTime").text();
-    const image = $(element).find("figure img").attr("src");
+  $(".wpds-c-fGHEql").each((_, element) => {
+    const title = $(element).find("h3").text();
+    const itemlink = $(element).find("a").attr("href");
+    const date = $(element).find("span[data-testid='timestamp']").text();
+    const image = $(element).find("img").attr("src");
+    const pubDate = new Date(date);
     if (title && itemlink && date && image) {
-      const match = date.trim().match(/(Updated on|Published on) (.+?) IST/);
-      const link = `https://www.hindustantimes.com${itemlink}`;
-      const pubDate = match ? new Date(match[2]) : new Date(0);
+      const link = itemlink;
       articles.push({ title, link, date, image, pubDate });
     }
   });
@@ -58,7 +58,7 @@ const getUrlsAndHeading = async (url) => {
     const diffDays = (now - pubDate) / (1000 * 60 * 60 * 24);
     return diffDays <= 2;
   });
-  return recent.length >= 10 ? recent : uniqueArticles.slice(0, 10);
+  return recent.length >= 15 ? recent : uniqueArticles.slice(0, 15);
 };
 
 // Extracts main content from the article's page
@@ -69,13 +69,12 @@ const getContent = async (url) => {
     const $ = cheerio.load(html);
     const paragraphs = [];
 
-    $("#storyMainDiv p").each((_, el) => {
-      const text = $(el).text().trim();
+    $(".grid-article.mb-xxl-ns p").each((_, element) => {
+      const text = $(element).text().trim();
       if (text) {
         paragraphs.push(text);
       }
     });
-
     return paragraphs.join(" ");
   } catch (err) {
     console.error("❌ Failed to extract content from:", url, err.message);
@@ -84,8 +83,7 @@ const getContent = async (url) => {
 };
 
 const getCleanedArticles = async () => {
-  const articlesMeta = await getUrlsAndHeading(education_url);
-
+  const articlesMeta = await getUrlsAndHeading(washing_ton);
   const results = await Promise.allSettled(
     articlesMeta.map(async (article) => {
       const content = await getContent(article.link);
@@ -146,8 +144,8 @@ const getCleanedArticles = async () => {
   }
 };
 
-// getCleanedArticles();
-// getUrlsAndHeading(education_url)
+getCleanedArticles();
+// getUrlsAndHeading(washing_ton)
 //   .then((articles) => {
 //     console.log("Fetched articles:", articles);
 //   })

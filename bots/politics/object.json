@@ -1,0 +1,42 @@
+{
+  "title": "Biden Unveils New Economic Policy Ahead of Election",
+  "story_summary": "President Biden introduced a new economic policy aiming to support middle-class families. The policy has received mixed reactions across media outlets.",
+
+  "sentiment": {
+    "label": "neutral",
+    "score": 0.05
+  },
+
+  "source_articles": [
+    {
+      "source_name": "CNN",
+      "url": "https://cnn.com/article..."
+    },
+    {
+      "source_name": "Fox News",
+      "url": "https://foxnews.com/article..."
+    },
+    {
+      "source_name": "Reuters",
+      "url": "https://reuters.com/article..."
+    }
+  ],
+
+  "contrasting_views": [
+    {
+      "claim": "The policy will boost the economy and support middle-class Americans.",
+      "supporters": ["CNN"],
+      "opposers": ["Fox News"],
+      "neutral": ["Reuters"]
+    },
+    {
+      "claim": "The plan may raise taxes and lacks detail.",
+      "supporters": ["Fox News"],
+      "opposers": [],
+      "neutral": ["Reuters"]
+    }
+  ],
+
+  "tags": ["biden", "economy", "2024 election"],
+  "date": "2023-10-15"
+}

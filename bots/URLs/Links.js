@@ -2,3 +2,13 @@ export const astrology_url='https://www.hindustantimes.com/astrology/horoscope';
 export const API_KEY='AIzaSyCkevf3XA1TWTXYtcbftqhf2vGU2b8qg9c';
 export const education_url='https://www.hindustantimes.com/education';
 export const chess_url='https://www.chess.com/news';
+export const cricket_article_url='https://www.cricbuzz.com/cricket-news'
+export const cricket_results_url='https://www.cricbuzz.com/';
+export const trending_url='https://personalize.livemint.com/popular-story?propertyId=lm&platformId=web&numStories=50';
+export const jobs_url='https://www.hindustantimes.com/education/employment-news';
+export const tech_url='https://www.gadgets360.com/news';
+export const indianexpress_url='https://indianexpress.com/section/political-pulse/';
+export const news18_url='https://www.news18.com/politics/';
+export const livemint_url='https://www.livemint.com/politics/';
+export const thehindu_url='https://www.thehindu.com/news/national/';
+export const washing_ton='https://www.washingtonpost.com/world/';

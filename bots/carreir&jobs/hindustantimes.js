@@ -1,10 +1,10 @@
-import { education_url } from "../URLs/Links.js";
+import { jobs_url } from "../URLs/Links.js";
 import * as cheerio from "cheerio";
 import { aiAgent } from "../../Agent/index.js";
 import fs from "fs/promises";
 
 const prompt = `
-You are given a list of education news articles. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
+You are given a list of job-related news articles. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
 
 [
   {
@@ -18,8 +18,8 @@ You are given a list of education news articles. For each article, extract and r
 ]
 
 Instructions:
-- \`story_summary\` must be **concise yet complete**, similar to a news digest (8-9 lines max). Focus on the key points: what, when, where, and why.
-- Keep \`tags\` lowercase, with no spaces or special characters. Use only relevant keywords (e.g., "education", "exams", "results", "admissions", "ranking"). Do not exceed 3 tags.
+- \`story_summary\` must be **concise yet complete**, similar to a news digest (8-9 lines max). Focus on the key points: what, when, where, who, and why.
+- Keep \`tags\` lowercase, with no spaces or special characters. Use only relevant keywords (e.g., "jobs", "recruitment", "government", "hiring", "vacancy"). Do not exceed 3 tags.
 - Only include the \`image\` field if a valid image URL is available.
 - Return only a **valid minified JSON array** — no markdown, no backticks, no extra explanation.
 `;
@@ -29,9 +29,37 @@ const getUrlsAndHeading = async (url) => {
   const response = await fetch(url);
   const html = await response.text();
   const $ = cheerio.load(html);
-  const articles = [];
 
-  $(".cartHolder.listView.noAd").each((_, element) => {
+  /*
+ 
+<div class="cartHolder listView track timeAgo" data-vars-cardtype="" data-vars-storyid="101743859153214" data-vars-storytype="story" data-weburl="https://www.hindustantimes.com/education/employment-news/secr-apprentice-recruitment-2025-apply-for-1007-posts-at-apprenticeshipindia-gov-in-details-here-101743859153214.html" data-vars-story-url="/education/employment-news/secr-apprentice-recruitment-2025-apply-for-1007-posts-at-apprenticeshipindia-gov-in-details-here-101743859153214.html" data-vars-story-title="SECR Apprentice Recruitment 2025: Apply for 1007 posts, check details here" data-vars-story-time="5 Apr, 2025 6:51:19 PM" data-vars-section="Employment News" data-vars-mainsection="education" data-vars-orderid="4">
+
+<h3 class="hdg3"><a href="/education/employment-news/secr-apprentice-recruitment-2025-apply-for-1007-posts-at-apprenticeshipindia-gov-in-details-here-101743859153214.html" data-articleid="101743859153214">SECR Apprentice Recruitment 2025: Apply for 1007 posts, check details here</a></h3>
+<h2 class="sortDec">SECR has invited applications for Apprentice posts. Eligible candidates can apply for 1007 posts at apprenticeshipindia.gov.in.&nbsp;</h2>
+<figure>
+<span>
+<a href="/education/employment-news/secr-apprentice-recruitment-2025-apply-for-1007-posts-at-apprenticeshipindia-gov-in-details-here-101743859153214.html" data-articleid="101743859153214">
+<img src="https://www.hindustantimes.com/ht-img/img/2025/04/05/148x111/Screenshot_2023-03-03_162321_1677840778655_1743859241052.png" class="lazy" data-src="https://www.hindustantimes.com/ht-img/img/2025/04/05/148x111/Screenshot_2023-03-03_162321_1677840778655_1743859241052.png" title="SECR Apprentice Recruitment 2025: Apply for 1007 posts, check details here (Representative image)" alt="SECR Apprentice Recruitment 2025: Apply for 1007 posts, check details here (Representative image)" data-loaded="true">
+</a></span>
+</figure>
+<div class="storyShortDetail">
+<div class="actionDiv flexElm" id="actionDivFTLBig-101743859153214">
+<div class="dateTime secTime ftldateTime ">Published 1 day ago</div>
+</div>
+<div class="actionDiv" style="display:none">
+<div id="new_socialIcons_inLineStory-101743859153214" class="new__socialIcons"></div>
+</div>
+<div class="stroyPub">
+<div class="storyBy">
+<span class="authorBy">By</span><small class="byLineAuthor"><a href="/author/ht-education-desk-101650005388976" class="authorNameClick" data-vars-article-title="SECR Apprentice Recruitment 2025: Apply for 1007 posts at apprenticeshipindia.gov.in, details here" data-vars-cta-text="HT Education Desk" data-vars-article-id="101743859153214" data-vars-article-category="education" data-vars-published-date="Apr 05, 2025 06:51 PM IST">HT Education Desk</a></small> | Edited by <small class="byLineAuthor"><a href="/author/papri-chanda-101616241421972" class="authorNameClick" data-vars-article-title="SECR Apprentice Recruitment 2025: Apply for 1007 posts at apprenticeshipindia.gov.in, details here" data-vars-cta-text="HT Education Desk" data-vars-article-id="101743859153214" data-vars-article-category="education" data-vars-published-date="Apr 05, 2025 06:51 PM IST">Papri Chanda</a></small>
+</div>
+</div>
+</div>
+</div>
+
+ */
+  const articles = [];
+  $(".cartHolder.listView.track.timeAgo").each((_, element) => {
     const title = $(element).find("h3 a").text();
     const itemlink = $(element).find("h3 a").attr("href");
     const date = $(element).find(".dateTime.secTime.ftldateTime").text();
@@ -84,12 +112,15 @@ const getContent = async (url) => {
 };
 
 const getCleanedArticles = async () => {
-  const articlesMeta = await getUrlsAndHeading(education_url);
-
+  const articlesMeta = await getUrlsAndHeading(jobs_url);
+  console.log(articlesMeta);
+  console.log(articlesMeta.length);
   const results = await Promise.allSettled(
     articlesMeta.map(async (article) => {
       const content = await getContent(article.link);
-      if (!content) return null;
+      if (!content) {
+        console.error("❌ Failed to extract content from:", article.link);
+      }
       return {
         title: article.title,
         link: article.link,
@@ -145,12 +176,4 @@ const getCleanedArticles = async () => {
     console.log("⚠️ Raw AI output saved to invalid-output.txt for debugging.");
   }
 };
-
-// getCleanedArticles();
-// getUrlsAndHeading(education_url)
-//   .then((articles) => {
-//     console.log("Fetched articles:", articles);
-//   })
-//   .catch((error) => {
-//     console.error("Error fetching articles:", error);
-//   });
+getCleanedArticles();
