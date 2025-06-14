@@ -11,3 +11,4 @@ export const news18_url='https://www.news18.com/politics/';
 export const livemint_url='https://www.livemint.com/politics/';
 export const thehindu_url='https://www.thehindu.com/news/national/';
 export const washing_ton='https://www.washingtonpost.com/world/';
+export const ia_url='https://www.thehindu.com/news/international/';

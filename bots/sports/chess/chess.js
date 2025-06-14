@@ -1,10 +1,10 @@
-import { education_url } from "../URLs/Links.js";
+import { chess_url } from "../../URLs/Links.js";
 import * as cheerio from "cheerio";
-import { aiAgent } from "../../Agent/index.js";
+import { aiAgent } from "../../../Agent/index.js";
 import fs from "fs/promises";
 
 const prompt = `
-You are given a list of education news articles. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
+You are given a list of chess news articles. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
 
 [
   {
@@ -19,31 +19,37 @@ You are given a list of education news articles. For each article, extract and r
 
 Instructions:
 - \`story_summary\` must be **concise yet complete**, similar to a news digest (8-9 lines max). Focus on the key points: what, when, where, and why.
-- Keep \`tags\` lowercase, with no spaces or special characters. Use only relevant keywords (e.g., "education", "exams", "results", "admissions", "ranking"). Do not exceed 3 tags.
+- Keep \`tags\` lowercase, with no spaces or special characters. Use only relevant keywords (e.g., "chess", "tournament", "gm", "championship"). Do not exceed 3 tags.
 - Only include the \`image\` field if a valid image URL is available.
 - Return only a **valid minified JSON array** — no markdown, no backticks, no extra explanation.
 `;
 
-// Extracts articles from the given URL
+
+// Extracts metadata (title, link, date, image) from articles on Chess.com
 const getUrlsAndHeading = async (url) => {
   const response = await fetch(url);
   const html = await response.text();
   const $ = cheerio.load(html);
   const articles = [];
 
-  $(".cartHolder.listView.noAd").each((_, element) => {
-    const title = $(element).find("h3 a").text();
-    const itemlink = $(element).find("h3 a").attr("href");
-    const date = $(element).find(".dateTime.secTime.ftldateTime").text();
-    const image = $(element).find("figure img").attr("src");
-    if (title && itemlink && date && image) {
-      const match = date.trim().match(/(Updated on|Published on) (.+?) IST/);
-      const link = `https://www.hindustantimes.com${itemlink}`;
-      const pubDate = match ? new Date(match[2]) : new Date(0);
-      articles.push({ title, link, date, image, pubDate });
+  $("article.post-preview-component").each((_, el) => {
+    const title = $(el).find("a.post-preview-title").text().trim();
+    const link = $(el).find("a.post-preview-title").attr("href")?.trim();
+    const image = $(el).find("img.post-preview-thumbnail").attr("src")?.trim();
+    const dateText = $(el).find("time").attr("datetime");
+
+    if (title && link && image && dateText) {
+      const pubDate = new Date(dateText);
+      articles.push({
+        title,
+        link,
+        image,
+        date: pubDate.toISOString().split("T")[0],
+        pubDate,
+      });
     }
   });
-
+  // Remove duplicates based on the link
   const seen = new Set();
   const uniqueArticles = articles.filter(({ link }) => {
     if (seen.has(link)) return false;
@@ -58,10 +64,11 @@ const getUrlsAndHeading = async (url) => {
     const diffDays = (now - pubDate) / (1000 * 60 * 60 * 24);
     return diffDays <= 2;
   });
+
   return recent.length >= 10 ? recent : uniqueArticles.slice(0, 10);
 };
 
-// Extracts main content from the article's page
+// Extracts full article content
 const getContent = async (url) => {
   try {
     const response = await fetch(url);
@@ -69,7 +76,7 @@ const getContent = async (url) => {
     const $ = cheerio.load(html);
     const paragraphs = [];
 
-    $("#storyMainDiv p").each((_, el) => {
+    $(".post-view-content p").each((_, el) => {
       const text = $(el).text().trim();
       if (text) {
         paragraphs.push(text);
@@ -82,10 +89,8 @@ const getContent = async (url) => {
     return null;
   }
 };
-
-const getCleanedArticles = async () => {
-  const articlesMeta = await getUrlsAndHeading(education_url);
-
+const getChess = async () => {
+  const articlesMeta = await getUrlsAndHeading(chess_url);
   const results = await Promise.allSettled(
     articlesMeta.map(async (article) => {
       const content = await getContent(article.link);
@@ -99,7 +104,6 @@ const getCleanedArticles = async () => {
       };
     })
   );
-
   const preparedArticles = results
     .filter((res) => res.status === "fulfilled" && res.value)
     .map((res) => res.value);
@@ -109,48 +113,33 @@ const getCleanedArticles = async () => {
     return;
   }
 
-  const maxRetries = 3;
+  const maxRetries = 4;
   let attempt = 0;
   let success = false;
   let cleanedOutput = "";
   let lastError = null;
 
-  while (attempt < maxRetries && !success) {
+  while (attempt < maxRetries) {
     try {
       const aiResponse = await aiAgent(preparedArticles, prompt);
       cleanedOutput = aiResponse.replace(/```json|```/g, "").trim();
       const jsonData = JSON.parse(cleanedOutput);
-      await fs.writeFile("test.json", JSON.stringify(jsonData, null, 2));
-      console.log("✅ Article data saved to test.json");
-      success = true;
+    return jsonData;
     } catch (err) {
       attempt++;
       lastError = err;
       console.error(`❌ Attempt ${attempt} failed: ${err.message}`);
       if (attempt < maxRetries) {
         console.log("🔄 Retrying...");
+      } else{
+        throw new Error(`Failed after ${maxRetries} attempts: ${err.message}`);
       }
     }
   }
-
-  if (!success) {
-    console.error(
-      "❌ Failed to summarize using AI after retries:",
-      lastError.message
-    );
-    await fs.writeFile(
-      "invalid-output.txt",
-      cleanedOutput || "No valid AI output received."
-    );
-    console.log("⚠️ Raw AI output saved to invalid-output.txt for debugging.");
-  }
+  return [];
 };
 
-// getCleanedArticles();
-// getUrlsAndHeading(education_url)
-//   .then((articles) => {
-//     console.log("Fetched articles:", articles);
-//   })
-//   .catch((error) => {
-//     console.error("Error fetching articles:", error);
-//   });
+// const data=await getChess();
+// console.log(data);
+
+export { getChess };

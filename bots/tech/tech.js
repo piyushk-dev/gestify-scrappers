@@ -1,7 +1,6 @@
 import { tech_url } from "../URLs/Links.js";
 import * as cheerio from "cheerio";
 import { aiAgent } from "../../Agent/index.js";
-import fs from "fs/promises";
 
 const prompt = `
 You are given a list of tech news articles. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
@@ -30,16 +29,6 @@ const getUrlsAndHeading = async (url) => {
   const html = await response.text();
   const $ = cheerio.load(html);
   const articles = [];
-
-  /*
-    <div class="caption_box"> 
-    <a href="https://www.gadgets360.com/ai/news/chatgpt-plus-free-regions-features-8094818">
-    <span class="news_listing">ChatGPT Plus Free Access for Select Users Announced Until the End of May</span>
-    </a>
-    <div class="dateline">Written by David Delima, 5 April 2025</div>
-    <a class="catname" href="https://www.gadgets360.com/ai">AI</a>
-    </div>
-*/
   $(".caption_box").each((_, el) => {
     const link = $(el).find("a").attr("href");
     const title = $(el).find(".news_listing").text().trim();
@@ -94,7 +83,7 @@ const getContent = async (url) => {
   }
 };
 
-const getCleanedArticles = async () => {
+const getTech = async () => {
   const articlesMeta = await getUrlsAndHeading(tech_url);
   const results = await Promise.allSettled(
     articlesMeta.map(async (article) => {
@@ -121,50 +110,32 @@ const getCleanedArticles = async () => {
     return;
   }
 
-  const maxRetries = 3;
+  const maxRetries = 4;
   let attempt = 0;
-  let success = false;
   let cleanedOutput = "";
   let lastError = null;
 
-  while (attempt < maxRetries && !success) {
+  while (attempt < maxRetries) {
     try {
       const aiResponse = await aiAgent(preparedArticles, prompt);
       cleanedOutput = aiResponse.replace(/```json|```/g, "").trim();
       const jsonData = JSON.parse(cleanedOutput);
-      await fs.writeFile("test.json", JSON.stringify(jsonData, null, 2));
-      console.log("✅ Article data saved to test.json");
-      success = true;
+      return jsonData;
     } catch (err) {
       attempt++;
       lastError = err;
       console.error(`❌ Attempt ${attempt} failed: ${err.message}`);
       if (attempt < maxRetries) {
         console.log("🔄 Retrying...");
+      } else{
+        throw new Error(`Failed after ${maxRetries} attempts: ${err.message}`);
       }
     }
   }
+  
+  return [];
 
-  if (!success) {
-    console.error(
-      "❌ Failed to summarize using AI after retries:",
-      lastError.message
-    );
-    await fs.writeFile(
-      "invalid-output.txt",
-      cleanedOutput || "No valid AI output received."
-    );
-    console.log("⚠️ Raw AI output saved to invalid-output.txt for debugging.");
-  }
 };
-getCleanedArticles();
-
-/*
-    <div class="caption_box"> 
-    <a href="https://www.gadgets360.com/ai/news/chatgpt-plus-free-regions-features-8094818">
-    <span class="news_listing">ChatGPT Plus Free Access for Select Users Announced Until the End of May</span>
-    </a>
-    <div class="dateline">Written by David Delima, 5 April 2025</div>
-    <a class="catname" href="https://www.gadgets360.com/ai">AI</a>
-    </div>
-*/
+// const tech_articles = await getTech();
+// console.log(tech_articles);
+export { getTech };

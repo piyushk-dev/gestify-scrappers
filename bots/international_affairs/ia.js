@@ -1,10 +1,9 @@
-import { chess_url } from "../../URLs/Links.js";
+import { ia_url } from "../URLs/Links.js";
 import * as cheerio from "cheerio";
-import { aiAgent } from "../../../Agent/index.js";
+import { aiAgent } from "../../Agent/index.js";
 import fs from "fs/promises";
-
 const prompt = `
-You are given a list of chess news articles. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
+You are given a list of political news articles. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
 
 [
   {
@@ -19,37 +18,30 @@ You are given a list of chess news articles. For each article, extract and retur
 
 Instructions:
 - \`story_summary\` must be **concise yet complete**, similar to a news digest (8-9 lines max). Focus on the key points: what, when, where, and why.
-- Keep \`tags\` lowercase, with no spaces or special characters. Use only relevant keywords (e.g., "chess", "tournament", "gm", "championship"). Do not exceed 3 tags.
+- Keep \`tags\` lowercase, with no spaces or special characters. Use only relevant keywords eg ("BJP", "Congress", "Religion" ). Do not exceed 3 tags.
 - Only include the \`image\` field if a valid image URL is available.
 - Return only a **valid minified JSON array** — no markdown, no backticks, no extra explanation.
 `;
-
-
-// Extracts metadata (title, link, date, image) from articles on Chess.com
+// Extracts articles from the given URL
 const getUrlsAndHeading = async (url) => {
   const response = await fetch(url);
   const html = await response.text();
   const $ = cheerio.load(html);
   const articles = [];
 
-  $("article.post-preview-component").each((_, el) => {
-    const title = $(el).find("a.post-preview-title").text().trim();
-    const link = $(el).find("a.post-preview-title").attr("href")?.trim();
-    const image = $(el).find("img.post-preview-thumbnail").attr("src")?.trim();
-    const dateText = $(el).find("time").attr("datetime");
-
-    if (title && link && image && dateText) {
-      const pubDate = new Date(dateText);
+  $(".element.row-element").each((_, el) => {
+    const title = $(el).find("h3.title a").text().trim();
+    const link = $(el).find("h3.title a").attr("href");
+    const image = $(el).find("img").attr("data-original");
+    if (title && link) {
       articles.push({
         title,
         link,
         image,
-        date: pubDate.toISOString().split("T")[0],
-        pubDate,
       });
     }
   });
-  // Remove duplicates based on the link
+
   const seen = new Set();
   const uniqueArticles = articles.filter(({ link }) => {
     if (seen.has(link)) return false;
@@ -59,51 +51,51 @@ const getUrlsAndHeading = async (url) => {
   // Sort by most recent
   uniqueArticles.sort((a, b) => b.pubDate - a.pubDate);
 
-  const now = new Date();
-  const recent = uniqueArticles.filter(({ pubDate }) => {
-    const diffDays = (now - pubDate) / (1000 * 60 * 60 * 24);
-    return diffDays <= 2;
-  });
-
-  return recent.length >= 10 ? recent : uniqueArticles.slice(0, 10);
+  return uniqueArticles.slice(0, 15);
 };
 
-// Extracts full article content
+// Extracts main content from the article's page
 const getContent = async (url) => {
   try {
     const response = await fetch(url);
     const html = await response.text();
     const $ = cheerio.load(html);
     const paragraphs = [];
-
-    $(".post-view-content p").each((_, el) => {
+    const articleId=url.split("/").slice(-1)[0].split(".")[0];
+    const id = articleId.split("article")[1];
+    $(`#content-body-${id} p`).each((_, el) => {
       const text = $(el).text().trim();
       if (text) {
         paragraphs.push(text);
       }
     });
-
-    return paragraphs.join(" ");
+    const content = paragraphs.join("\n");
+    return content;
   } catch (err) {
     console.error("❌ Failed to extract content from:", url, err.message);
     return null;
   }
 };
-const getCleanedArticles = async () => {
-  const articlesMeta = await getUrlsAndHeading(chess_url);
+
+const getIA = async () => {
+  const articlesMeta = await getUrlsAndHeading(ia_url);
+
   const results = await Promise.allSettled(
     articlesMeta.map(async (article) => {
       const content = await getContent(article.link);
-      if (!content) return null;
+      if (!content) {
+        console.log("❌ Failed to extract content from:", article.link);
+        return null;
+      }
       return {
         title: article.title,
         link: article.link,
-        date: article.pubDate.toISOString().split("T")[0],
         image: article.image,
         content,
       };
     })
   );
+
   const preparedArticles = results
     .filter((res) => res.status === "fulfilled" && res.value)
     .map((res) => res.value);
@@ -113,20 +105,17 @@ const getCleanedArticles = async () => {
     return;
   }
 
-  const maxRetries = 3;
+  const maxRetries = 4;
   let attempt = 0;
-  let success = false;
   let cleanedOutput = "";
   let lastError = null;
 
-  while (attempt < maxRetries && !success) {
+  while (attempt < maxRetries) {
     try {
       const aiResponse = await aiAgent(preparedArticles, prompt);
       cleanedOutput = aiResponse.replace(/```json|```/g, "").trim();
       const jsonData = JSON.parse(cleanedOutput);
-      await fs.writeFile("test.json", JSON.stringify(jsonData, null, 2));
-      console.log("✅ Article data saved to test.json");
-      success = true;
+      return jsonData;
     } catch (err) {
       attempt++;
       lastError = err;
@@ -134,20 +123,14 @@ const getCleanedArticles = async () => {
       if (attempt < maxRetries) {
         console.log("🔄 Retrying...");
       }
+      if(attempt>= maxRetries) {
+        throw new Error("AI processing failed: " + err.message);
+      }
     }
   }
-
-  if (!success) {
-    console.error(
-      "❌ Failed to summarize using AI after retries:",
-      lastError.message
-    );
-    await fs.writeFile(
-      "invalid-output.txt",
-      cleanedOutput || "No valid AI output received."
-    );
-    console.log("⚠️ Raw AI output saved to invalid-output.txt for debugging.");
-  }
+  return [];
 };
 
-getCleanedArticles();
+export {getIA};
+// const data= await getIA();
+// console.log(data);

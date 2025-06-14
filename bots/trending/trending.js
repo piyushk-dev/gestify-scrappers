@@ -1,9 +1,10 @@
-import { washing_ton } from "../URLs/Links.js";
+import { trending_url } from "../URLs/Links.js";
 import * as cheerio from "cheerio";
 import { aiAgent } from "../../Agent/index.js";
 import fs from "fs/promises";
+
 const prompt = `
-You are given a list of political news articles. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
+You are given a list of trending news articles from a general news page. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
 
 [
   {
@@ -12,64 +13,53 @@ You are given a list of political news articles. For each article, extract and r
     "story_summary": "<concise 8-9 line summary of the article>",
     "tags": ["<relevant_tag_1>", "<relevant_tag_2>", "<relevant_tag_3>"],
     "date": "<date of the article in YYYY-MM-DD format>",
-    "image": "<optional image URL if available>"
+    "sentiment": "<positive|negative|neutral>
+    "image": "<image URL if available, otherwise omit it>"
   }
 ]
 
 Instructions:
-- \`story_summary\` must be **concise yet complete**, similar to a news digest (8-9 lines max). Focus on the key points: what, when, where, and why.
-- Keep \`tags\` lowercase, with no spaces or special characters. Use only relevant keywords eg ("BJP", "Congress", "Religion" ). Do not exceed 3 tags.
-- Only include the \`image\` field if a valid image URL is available.
+- \`story_summary\` must be **concise yet complete**, similar to a news digest (8-9 lines max). Focus on key details: what happened, who was involved, when, where, and why it matters.
+- \`tags\` must be lowercase, no spaces or special characters. Use only relevant keywords (e.g., "politics", "sports", "technology", "entertainment", "business", "health", "world"). Do not exceed 3 tags.
 - Return only a **valid minified JSON array** — no markdown, no backticks, no extra explanation.
 `;
 
-// Extracts articles from the given URL
+// Extracts metadata (title, link, date, image) from articles on Chess.com
 const getUrlsAndHeading = async (url) => {
-  //simulate a browser
   const response = await fetch(url);
-
-  const html = await response.text();
-  const $ = cheerio.load(html);
-  const articles = [];
-
-  $(".wpds-c-fGHEql").each((_, element) => {
-    const title = $(element).find("h3").text();
-    const itemlink = $(element).find("a").attr("href");
-    const date = $(element).find("span[data-testid='timestamp']").text();
-    const image = $(element).find("img").attr("src");
-    const pubDate = new Date(date);
-    if (title && itemlink && date && image) {
-      const link = itemlink;
-      articles.push({ title, link, date, image, pubDate });
-    }
-  });
-
+  const data = await response.json();
+  //   console.log(data);
+  //x.items[0].headline x.items[0].storyURL x.items[0].publishDate x.items[0].keywords x.items[0].imageObject.original
+  const articles = data.items.map((item) => ({
+    title: item.headline,
+    link: item.storyURL,
+    pubDate: new Date(item.publishDate),
+    image: item.imageObject?.original || null,
+  }));
   const seen = new Set();
   const uniqueArticles = articles.filter(({ link }) => {
     if (seen.has(link)) return false;
     seen.add(link);
     return true;
   });
-  // Sort by most recent
   uniqueArticles.sort((a, b) => b.pubDate - a.pubDate);
-
   const now = new Date();
   const recent = uniqueArticles.filter(({ pubDate }) => {
     const diffDays = (now - pubDate) / (1000 * 60 * 60 * 24);
     return diffDays <= 2;
   });
-  return recent.length >= 15 ? recent : uniqueArticles.slice(0, 15);
+
+  return uniqueArticles.slice(0, 15);
 };
 
-// Extracts main content from the article's page
+// Extracts full article content
 const getContent = async (url) => {
   try {
     const response = await fetch(url);
     const html = await response.text();
     const $ = cheerio.load(html);
     const paragraphs = [];
-
-    $(".grid-article.mb-xxl-ns p").each((_, element) => {
+    $(".storyParagraph").each((_, element) => {
       const text = $(element).text().trim();
       if (text) {
         paragraphs.push(text);
@@ -81,9 +71,8 @@ const getContent = async (url) => {
     return null;
   }
 };
-
-const getCleanedArticles = async () => {
-  const articlesMeta = await getUrlsAndHeading(washing_ton);
+const getTrending = async () => {
+  const articlesMeta = await getUrlsAndHeading(trending_url);
   const results = await Promise.allSettled(
     articlesMeta.map(async (article) => {
       const content = await getContent(article.link);
@@ -97,7 +86,6 @@ const getCleanedArticles = async () => {
       };
     })
   );
-
   const preparedArticles = results
     .filter((res) => res.status === "fulfilled" && res.value)
     .map((res) => res.value);
@@ -107,7 +95,7 @@ const getCleanedArticles = async () => {
     return;
   }
 
-  const maxRetries = 3;
+  const maxRetries = 4;
   let attempt = 0;
   let success = false;
   let cleanedOutput = "";
@@ -118,37 +106,22 @@ const getCleanedArticles = async () => {
       const aiResponse = await aiAgent(preparedArticles, prompt);
       cleanedOutput = aiResponse.replace(/```json|```/g, "").trim();
       const jsonData = JSON.parse(cleanedOutput);
-      await fs.writeFile("test.json", JSON.stringify(jsonData, null, 2));
-      console.log("✅ Article data saved to test.json");
+      // console.log(jsonData);
       success = true;
+      return jsonData;
     } catch (err) {
       attempt++;
       lastError = err;
       console.error(`❌ Attempt ${attempt} failed: ${err.message}`);
       if (attempt < maxRetries) {
         console.log("🔄 Retrying...");
+      } else{
+        throw new Error(`Failed after ${maxRetries} attempts: ${err.message}`);
       }
     }
   }
-
-  if (!success) {
-    console.error(
-      "❌ Failed to summarize using AI after retries:",
-      lastError.message
-    );
-    await fs.writeFile(
-      "invalid-output.txt",
-      cleanedOutput || "No valid AI output received."
-    );
-    console.log("⚠️ Raw AI output saved to invalid-output.txt for debugging.");
-  }
+  return [];
 };
 
-getCleanedArticles();
-// getUrlsAndHeading(washing_ton)
-//   .then((articles) => {
-//     console.log("Fetched articles:", articles);
-//   })
-//   .catch((error) => {
-//     console.error("Error fetching articles:", error);
-//   });
+export { getTrending };
+

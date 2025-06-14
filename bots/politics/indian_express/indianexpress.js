@@ -101,40 +101,27 @@ export const getCleanedArticles = async () => {
     console.error("⚠️ No articles to process.");
     return;
   }
-  const maxRetries = 3;
+  const maxRetries = 4;
   let attempt = 0;
-  let success = false;
   let cleanedOutput = "";
   let lastError = null;
 
-  while (attempt < maxRetries && !success) {
+  while (attempt < maxRetries) {
     try {
       const aiResponse = await aiAgent(preparedArticles, prompt);
       cleanedOutput = aiResponse.replace(/```json|```/g, "").trim();
       const jsonData = JSON.parse(cleanedOutput);
-      await fs.writeFile("test.json", JSON.stringify(jsonData, null, 2));
-      console.log("✅ Article data saved to test.json");
-      success = true;
-	  return jsonData;
+	    return jsonData;
     } catch (err) {
       attempt++;
       lastError = err;
       console.error(`❌ Attempt ${attempt} failed: ${err.message}`);
       if (attempt < maxRetries) {
         console.log("🔄 Retrying...");
+      } else{
+        throw new Error(`Failed after ${maxRetries} attempts: ${err.message}`);
       }
     }
   }
-
-  if (!success) {
-    console.error(
-      "❌ Failed to summarize using AI after retries:",
-      lastError.message
-    );
-    await fs.writeFile(
-      "invalid-output.txt",
-      cleanedOutput || "No valid AI output received."
-    );
-    console.log("⚠️ Raw AI output saved to invalid-output.txt for debugging.");
-  }
+  return [];
 };
