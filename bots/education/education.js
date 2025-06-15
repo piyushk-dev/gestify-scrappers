@@ -34,8 +34,8 @@ const getUrlsAndHeading = async (url) => {
   $(".cartHolder.listView.noAd").each((_, element) => {
     const title = $(element).find("h3 a").text();
     const itemlink = $(element).find("h3 a").attr("href");
-    const date = $(element).find(".dateTime.secTime.ftldateTime").text() || "na";
-    const image = $(element).find("figure img").attr("src") || "na"
+    const date = $(element).find(".dateTime.secTime.ftldateTime").text() || "NA";
+    const image = $(element).find("figure img").attr("src") || "NA"
     if (title && itemlink && date && image) {
       const match = date.trim().match(/(Updated on|Published on) (.+?) IST/);
       const link = `https://www.hindustantimes.com${itemlink}`;
@@ -94,7 +94,7 @@ const getEdu = async () => {
       return {
         title: article.title,
         link: article.link,
-        date: article.pubDate.toISOString().split("T")[0],
+        date: article.pubDate.toISOString().split("T")[0] || "NA",
         image: article.image,
         content,
       };

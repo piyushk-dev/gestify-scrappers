@@ -99,10 +99,8 @@ async function runAllScrapers() {
 
   for (const scraper of scrapers) {
     try {
-      if(scraper.name!="Score") continue;
       console.log(`🚀 Starting ${scraper.name.toLowerCase()} scraper...`);
       const data = await scraper.fetch();
-
       const isValid =
         Array.isArray(data) ? data.length > 0 : Object.keys(data).length > 0;
 
@@ -128,9 +126,6 @@ async function cleanupAndExit() {
   console.log("🔌 MongoDB connection closed.");
   process.exit(0);
 }
-// runAllScrapers().catch((err) => {
-//   console.error("Fatal error in runAllScrapers:", err);
-// });
 await runAllScrapers().then(() => {
   cleanupAndExit();
 }).catch((err) => {
