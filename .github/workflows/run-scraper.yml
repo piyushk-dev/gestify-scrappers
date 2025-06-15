@@ -4,7 +4,6 @@ on:
   schedule:
     - cron: '0 1 * * *'  # Runs at 7:00 AM IST
   workflow_dispatch:      # Allow manual runs
-
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -18,8 +17,11 @@ jobs:
         with:
           node-version: '18'
 
+      - name: Install pnpm
+        run: npm install -g pnpm
+
       - name: Install dependencies
-        run: pnpm install  # or use `npm install` if not using pnpm
+        run: pnpm install
 
       - name: Create .env file from secrets
         run: |
