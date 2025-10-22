@@ -2,6 +2,7 @@ import { education_url } from "../URLs/Links.js";
 import * as cheerio from "cheerio";
 import { aiAgent } from "../../Agent/index.js";
 import fs from "fs/promises";
+import { get } from "http";
 
 const prompt = `
 You are given a list of education news articles. For each article, extract and return a structured JSON object in the following array format **without any extra text, markdown, or backticks**:
@@ -12,7 +13,7 @@ You are given a list of education news articles. For each article, extract and r
     "link": "<URL of the article>",
     "story_summary": "<concise 8-9 line summary of the article>",
     "tags": ["<relevant_tag_1>", "<relevant_tag_2>", "<relevant_tag_3>"],
-    "date": "<date of the article in YYYY-MM-DD format>",
+    "date": "<date of the article in YYYY-MM-DD format that can be inferred from the article or 'NA' if not available>",
     "image": "<optional image URL if available>"
   }
 ]
@@ -30,21 +31,44 @@ const getUrlsAndHeading = async (url) => {
   const html = await response.text();
   const $ = cheerio.load(html);
 
-  const articles = [];
-  $(".cartHolder.listView.noAd").each((_, element) => {
-    const title = $(element).find("h3 a").text();
-    const itemlink = $(element).find("h3 a").attr("href");
-    const date = $(element).find(".dateTime.secTime.ftldateTime").text() || "NA";
-    const image = $(element).find("figure img").attr("src") || "NA"
-    if (title && itemlink && date && image) {
-      const match = date.trim().match(/(Updated on|Published on) (.+?) IST/);
-      const link = `https://www.hindustantimes.com${itemlink}`;
-      const pubDate = match ? new Date(match[2]) : new Date(0);
-      articles.push({ title, link, date, image, pubDate });
-      // console.log({ title, link, date, image, pubDate });
-    }
-  });
+/*
 
+<div class="cartHolder listView noAd">
+<a href="/education/exam-results/tnpsc-group-4-result-2025-declared-at-tnpsc-gov-in-check-marks-and-rank-position-here-101761133026340.html" class="storyLink"></a>
+<h3 class="hdg3"><a href="/education/exam-results/tnpsc-group-4-result-2025-declared-at-tnpsc-gov-in-check-marks-and-rank-position-here-101761133026340.html">TNPSC Group 4 Result 2025 declared, check marks and rank position here</a></h3>
+<figure><span><a href="https://www.hindustantimes.com/education/exam-results/tnpsc-group-4-result-2025-declared-at-tnpsc-gov-in-check-marks-and-rank-position-here-101761133026340.html"><img src="https://www.hindustantimes.com/ht-img/img/2025/10/22/148x111/TNPSC_Group_4_1761133129409_1761133136681.png" alt="TNPSC Group 4 Result 2025 declared at tnpsc.gov.in, check marks and rank position here"></a></span></figure>
+<div class="storyShortDetail">
+<div class="actionDiv flexElm">
+<div class="secName ftlsecName"><a href="https://www.hindustantimes.com/education/exam-results">exam results</a></div>
+</div>
+</div>
+</div>
+
+*/
+const articles = [];
+$(".cartHolder.listView.noAd").each((_, element) => {
+  const $element = $(element);
+  const title = $element.find("h3.hdg3 a").text().trim();
+  const itemlink = $element.find("h3.hdg3 a").attr("href");
+  const image = $element.find("figure img").attr("src");
+  const date = $element.find(".storyShortDetail .date, .dateTime, time").text().trim();
+
+  // console.log({ title, itemlink, image, date });
+
+
+  if (title && itemlink && image) { const link = `https://www.hindustantimes.com${itemlink}`;
+    
+    // Parse date if it exists
+    let pubDate = new Date(0);
+    if (date) {
+      const match = date.match(/(Updated on|Published on) (.+?) IST/);
+      pubDate = match ? new Date(match[2]) : new Date(date);
+    }
+    
+    articles.push({ title, link, date: date || '', image, pubDate });
+    // console.log({ title, link, date, image, pubDate });
+  }
+});
   const seen = new Set();
   const uniqueArticles = articles.filter(({ link }) => {
     if (seen.has(link)) return false;
@@ -62,22 +86,28 @@ const getUrlsAndHeading = async (url) => {
   return uniqueArticles.slice(0, 10);
 };
 
-// Extracts main content from the article's page
 const getContent = async (url) => {
   try {
     const response = await fetch(url);
     const html = await response.text();
     const $ = cheerio.load(html);
+
+    const container = $("#dataHolder"); // generic top-level container
     const paragraphs = [];
 
-    $("#storyMainDiv p").each((_, el) => {
+    // Extract the main title <h1>
+    const title = container.find("h1").first().text().trim();
+    if (title) paragraphs.push(title + "\n");
+
+    // Extract <h2> and <p> inside the container
+    container.find("h2, p").each((_, el) => {
       const text = $(el).text().trim();
       if (text) {
         paragraphs.push(text);
       }
     });
 
-    return paragraphs.join(" ");
+    return paragraphs.join("\n\n"); // double newline for readability
   } catch (err) {
     console.error("❌ Failed to extract content from:", url, err.message);
     return null;
@@ -139,3 +169,6 @@ const getEdu = async () => {
 };
 
 export { getEdu };
+
+//printing on the terminal for testing purpose
+// getEdu().then((data) => console.log(data)).catch((err) => console.error(err));
