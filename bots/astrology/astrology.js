@@ -16,7 +16,7 @@ const prompt = `
       "link": "<URL of the article>",
       "story_summary": "<concise 6-7 line summary of the article>",
       "tags": ["<zodiac_sign>", "horoscope", "astrology"],
-      "date": "<date of the article>",
+      "date": "<date of the article> that can be inferred from the article in YYYY-MM-DD format>",
     }
   }
   
@@ -51,7 +51,7 @@ const getList = async (url) => {
       const link = $(el).attr("data-weburl");
       if (title && link) data.push({ title, link });
     });
-    return data;
+    return data.slice(0, 13);
   } catch (err) {
     console.error("Failed to fetch articles:", err.message);
     return [];

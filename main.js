@@ -122,7 +122,7 @@ async function runAllScrapers() {
   console.log("🎉 All scrapers completed.");
 }
 async function cleanupAndExit() {
-  await mongoose.connection.close(); // 👈 closes DB sockets
+  await mongoose.connection.close();
   console.log("🔌 MongoDB connection closed.");
   process.exit(0);
 }

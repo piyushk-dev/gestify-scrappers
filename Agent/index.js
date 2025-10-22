@@ -19,3 +19,5 @@ export const aiAgent = async (data, prompt) => {
   });
   return response.text;
 };
+// test
+// aiAgent("", "how are yaa and which model are you on, the pro one? or flash").then((res) => console.log(res));
