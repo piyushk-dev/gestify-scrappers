@@ -22,34 +22,32 @@ Instructions:
 - Return only a **valid minified JSON array** — no markdown, no backticks, no extra explanation.
 `;
 
+
 const fetchMeta = async (url) => {
   const res = await fetch(url);
   const html = await res.text();
   const $ = cheerio.load(html);
   const articles = [];
 
-  $(".cb-col.cb-col-100.cb-lst-itm.cb-pos-rel.cb-lst-itm-lg").each((_, el) => {
-    const title = $(el).find("h2 a").text().trim();
-    const link = $(el).find("h2 a").attr("href")?.trim();
-    const image = $(el).find("img").attr("src")?.trim();
-    const dateText = $(el).find("span.cb-nws-time").text().trim();
+  $(".flex.flex-col.gap-2.py-4.px-2.bg-cbWhite.border-b-4.wb\\:border-b.border-cbLightgray.dark\\:bg-cbItmBkgDark").each((_, el) => {
 
-    const pubDate = new Date();
-    const match = dateText.match(/(\d+)(?:m ago|h ago|s ago)/);
-    if (match) {
-      const val = parseInt(match[1], 10);
-      if (dateText.includes("m ago")) pubDate.setMinutes(pubDate.getMinutes() - val);
-      else if (dateText.includes("h ago")) pubDate.setHours(pubDate.getHours() - val);
-      else pubDate.setSeconds(pubDate.getSeconds() - val);
+
+    const title = $(el).find("a.font-bold").attr("title")?.trim();
+    const link = $(el).find("a.font-bold").attr("href")?.trim();    let image = $(el).find("img").attr("src")?.trim();
+    if (image) {
+      const urlObj = new URL(image);
+      image = urlObj.origin + urlObj.pathname + "?d=orig&p=det";
     }
 
-    if (title && link && match) {
+
+    const pubDate = new Date();
+
+    if (title && link) {
       articles.push({
         title,
         link: `https://www.cricbuzz.com${link}`,
         image,
         date: pubDate.toISOString().split("T")[0],
-        pubDate,
       });
     }
   });
@@ -60,26 +58,25 @@ const fetchMeta = async (url) => {
     seen.add(link);
     return true;
   });
-
-  unique.sort((a, b) => b.pubDate - a.pubDate);
-
-  const now = new Date();
-  const recent = unique.filter(({ pubDate }) => (now - pubDate) / (1000 * 60 * 60 * 24) <= 2);
-
-  return recent.length >= 10 ? recent : unique.slice(0, 10);
+  return unique.slice(0, 15);
 };
 
 const fetchContent = async (url) => {
+
   try {
     const res = await fetch(url);
     const html = await res.text();
     const $ = cheerio.load(html);
     const paras = [];
-    $(".cb-nws-dtl-itms p").each((_, el) => {
-      const t = $(el).text().trim();
-      if (t) paras.push(t);
+    $(".flex.flex-col.gap-6.text-base > div > section > p").each((_, el) => {
+      const text = $(el).text().trim();
+      if (text) paras.push(text);
     });
+    
+    console.log(paras);
     return paras.join(" ");
+
+
   } catch (e) {
     console.error("❌ Failed to extract content from:", url, e.message);
     return null;
@@ -88,6 +85,7 @@ const fetchContent = async (url) => {
 
 const getCricket = async () => {
   const metas = await fetchMeta(cricket_article_url);
+  console.log(metas);
   const results = await Promise.allSettled(
     metas.map(async (a) => {
       const content = await fetchContent(a.link);
@@ -95,15 +93,14 @@ const getCricket = async () => {
       return {
         title: a.title,
         link: a.link,
-        date: a.pubDate.toISOString().split("T")[0],
+        date: a.date,
         image: a.image,
         content,
       };
     })
   );
-
   const prepared = results.filter(r => r.status === "fulfilled" && r.value).map(r => r.value);
-
+  console.log(prepared)
   if (prepared.length === 0) {
     console.error("⚠️ No articles to process.");
     return;

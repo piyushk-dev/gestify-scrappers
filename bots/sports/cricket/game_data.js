@@ -1,9 +1,6 @@
 import { cricket_results_url } from "../../URLs/Links.js";
 import * as cheerio from "cheerio";
 import { aiAgent } from "../../../Agent/index.js";
-import fs from "fs/promises";
-import { get } from "http";
-import { json } from "stream/consumers";
 
 const image = [
   "ipl",
